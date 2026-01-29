@@ -66,6 +66,10 @@
 
 <body>
   <div class="wrap">
+    <div class="toolbar">
+      <input type="file" id="bgPicker" accept="image/*">
+      <button id="resetBtn">重置遮罩</button>
+    </div>
 
     <canvas id="canvas"></canvas>
 
@@ -278,6 +282,22 @@
     drawCovers();
   });
 
+  // ====== 用 input 選桌面背景圖 ======
+  const bgPicker = document.getElementById("bgPicker");
+  let bgUrl = null;
+
+  bgPicker.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (bgUrl) URL.revokeObjectURL(bgUrl);
+    bgUrl = URL.createObjectURL(file);
+
+    canvas.style.background = `url("${bgUrl}") no-repeat center / 100% 100%`;
+
+    // 換背景後重繪一次
+    drawCovers();
+  });
 
   // 初始繪製 + 監聽縮放
   drawCovers();
