@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BoyOrGirl Scratch</title>
+  <style>
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      height: 100vh;
+      background: #f6f6f6;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+
+    canvas {
+      width: 400px;    /* 顯示尺寸 */
+      height: 400px;   /* 顯示尺寸 */
+      background: url("https://hsuanxcollection.files.wordpress.com/2022/10/brown-and-blue-minimalist-photography-birthday-gift-box-ideas-instagram-post.png?resize=668,668")
+                  no-repeat center / 100% 100%;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.12);
+      touch-action: none; /* 重要：避免手機滑動頁面干擾刮刮 */
+      display: block;
+    }
+
+    .hint {
+      margin-top: 14px;
+      color: #555;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <div class="hint">用滑鼠/手指刮開灰色遮罩（刮開超過 35% 會自動揭曉）</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+const context = canvas.getContext("2d");
+
+init();
+
+function init() {
+  context.fillStyle = "#ddd";
+  context.fillRect(40, 160, 120, 120);
+
+  context.fillStyle = "#ddd";
+  context.fillRect(250, 160, 120, 120);
+
+  canvas.style.background =
+    'url("https://hsuanxcollection.files.wordpress.com/2022/10/brown-and-blue-minimalist-photography-birthday-gift-box-ideas-instagram-post.png?resize=668,668") no-repeat center';
+  canvas.style.backgroundSize = "100% 100%";
+  context.lineWidth = 20;
+  context.lineJoin = "round";
+}
+// 滑鼠監聽
+canvas.addEventListener("mousedown", mouseDown, false);
+canvas.addEventListener("mousemove", mouseMove, false);
+canvas.addEventListener("mouseup", mouseUp, false);
+// 觸控監聽
+canvas.addEventListener("touchstart", mouseDown, false);
+canvas.addEventListener("touchmove", mouseMove, false);
+canvas.addEventListener("touchend", mouseUp, false);
+
+let isDrawing;
+let startX = 0;
+let startY = 0;
+let removeGrayColor = 0;
+
+function mouseDown(e) {
+  isDrawing = true;
+  startX = e.layerX;
+  startY = e.layerY;
+}
+
+function mouseMove(e) {
+  if (isDrawing) {
+    removeGrayColor++;
+    var x = e.layerX;
+    var y = e.layerY;
+
+    context.globalCompositeOperation = "destination-out";
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(x, y);
+    context.closePath();
+    context.stroke();
+    startX = x;
+    startY = y;
+  }
+}
+
+function mouseUp(e) {
+  isDrawing = false;
+}
+
+  </script>
+</body>
+</html>
