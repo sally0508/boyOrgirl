@@ -2,8 +2,9 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BoyOrGirl - Line Scratch Only</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BoyOrGirl</title>
+
   <style>
     body{
       margin:0;
@@ -13,163 +14,202 @@
       background:#f6f6f6;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
     }
+
     canvas{
-      width:400px;
-      height:400px;
+      width: 720px;  /* 顯示尺寸，可依你需求改 */
+      height: 430px;
       display:block;
-      border-radius:16px;
-      box-shadow:0 12px 30px rgba(0,0,0,.12);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.12);
+
+      /* 背景圖：你的藍粉雲朵 */
       background:
-        url("https://hsuanxcollection.files.wordpress.com/2022/10/brown-and-blue-minimalist-photography-birthday-gift-box-ideas-instagram-post.png?resize=668,668")
+        url("Guess.jpg")
         no-repeat center / 100% 100%;
-      touch-action:none; /* 防止手機滑動干擾畫線 */
+
+      touch-action:none; /* 重要：避免手機滑動頁面干擾畫線 */
     }
+
     .hint{
-      margin-top:12px;
+      margin-top: 12px;
       color:#555;
-      font-size:14px;
+      font-size: 14px;
       text-align:center;
     }
   </style>
 </head>
+
 <body>
   <div>
-    <canvas id="canvas" width="400" height="400"></canvas>
-    <div class="hint">
-      只能用「畫線」刮開灰色方塊；刮開每個方塊超過 60% 才會揭曉該方塊
-    </div>
+    <!-- canvas 真實畫布尺寸（內部像素）建議與顯示尺寸一致 -->
+    <canvas id="canvas" width="720" height="430"></canvas>
+    <div class="hint">只能用畫線刮開灰色雲朵遮罩（刮開超過 60% 會自動揭曉）</div>
   </div>
 
-<script>
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  // 兩個遮罩方塊定義
-  const boxes = [
-    { id: "left",  x: 40,  y: 160, w: 120, h: 120, revealed: false },
-    { id: "right", x: 250, y: 160, w: 120, h: 120, revealed: false }
-  ];
+    /**
+     * ✅ 這裡的 x,y,w,h 是「灰色遮罩的位置」
+     * 你圖片雲朵位置如果不同，可以微調這四個數字對齊雲朵
+     */
+    const boxes = [
+      // 藍色雲朵（左）
+      { id: "left",  x: 85,  y: 230, w: 210, h: 120, label: "男生", revealed: false },
 
-  // 揭曉門檻：只計算方塊內的透明比例
-  const threshold = 0.60;
+      // 粉紅色雲朵（右）
+      { id: "right", x: 430, y: 230, w: 210, h: 120, label: "女生", revealed: false }
+    ];
 
-  // 畫上灰色遮罩（只畫在方塊內）
-  function drawCovers() {
-    ctx.globalCompositeOperation = "source-over";
-    // 先清空 canvas 上層（不會影響 CSS 背景圖）
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 刮開門檻（只計算該方塊內透明比例）
+    const threshold = 0.60;
 
-    ctx.fillStyle = "#ddd";
-    for (const b of boxes) {
-      if (!b.revealed) ctx.fillRect(b.x, b.y, b.w, b.h);
+    // 重新繪製灰色遮罩與文字
+    function drawCovers() {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1) 畫灰色遮罩
+      ctx.fillStyle = "#ddd";
+      for (const b of boxes) {
+        if (!b.revealed) ctx.fillRect(b.x, b.y, b.w, b.h);
+      }
+
+      // 2) 在遮罩上寫字（男生/女生）
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 34px 'Noto Sans TC', system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+
+      // 字色（可改 #333 / #000 / 白色）
+      ctx.fillStyle = "#333";
+
+      for (const b of boxes) {
+        if (b.revealed) continue;
+
+        const cx = b.x + b.w / 2;
+        const cy = b.y + b.h / 2;
+
+        // 讓字更清楚：白色描邊 + 深色填滿
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "white";
+        ctx.strokeText(b.label, cx, cy);
+        ctx.fillText(b.label, cx, cy);
+      }
+
+      // 3) 畫線筆刷設定（刮除用）
+      ctx.lineWidth = 26;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
     }
 
-    // 畫線筆刷設定
-    ctx.lineWidth = 22;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-  }
+    drawCovers();
 
-  drawCovers();
-
-  // 取得 pointer 的 canvas 座標（支援縮放後的顯示尺寸）
-  function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height)
-    };
-  }
-
-  // 判斷點是否落在任一方塊內（避免「任意處」也能刮）
-  function hitBox(p) {
-    return boxes.find(b =>
-      !b.revealed &&
-      p.x >= b.x && p.x <= b.x + b.w &&
-      p.y >= b.y && p.y <= b.y + b.h
-    );
-  }
-
-  let isDrawing = false;
-  let last = { x: 0, y: 0 };
-  let activeBox = null;
-
-  function scratchLine(from, to) {
-    // 只允許在 activeBox 存在時才刮
-    if (!activeBox) return;
-
-    ctx.save();
-
-    // ★重點：限制刮除只能發生在該方塊區域（clip）
-    ctx.beginPath();
-    ctx.rect(activeBox.x, activeBox.y, activeBox.w, activeBox.h);
-    ctx.clip();
-
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  // 計算某一方塊內透明比例（只看該方塊）
-  function calcTransparentRatio(box) {
-    const img = ctx.getImageData(box.x, box.y, box.w, box.h);
-    const data = img.data;
-    let transparent = 0;
-    const total = box.w * box.h;
-
-    // alpha 通道 data[i+3]
-    for (let i = 3; i < data.length; i += 4) {
-      if (data[i] === 0) transparent++;
+    // 把 pointer 座標換成 canvas 內部座標（支援縮放後顯示尺寸）
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top)  * (canvas.height / rect.height)
+      };
     }
-    return transparent / total;
-  }
 
-  function tryReveal(box) {
-    const ratio = calcTransparentRatio(box);
-    if (ratio >= threshold) {
-      box.revealed = true;
+    // 判斷是否點到某個遮罩方塊（未揭曉才算）
+    function hitBox(p) {
+      return boxes.find(b =>
+        !b.revealed &&
+        p.x >= b.x && p.x <= b.x + b.w &&
+        p.y >= b.y && p.y <= b.y + b.h
+      );
+    }
 
-      // 清掉該方塊剩餘遮罩（確保完全揭曉）
+    // 在指定 box 範圍內用畫線刮除
+    function scratchLine(box, from, to) {
+      if (!box) return;
+
       ctx.save();
+
+      // ✅ clip：限制刮除只能在該灰色方塊內發生
+      ctx.beginPath();
+      ctx.rect(box.x, box.y, box.w, box.h);
+      ctx.clip();
+
       ctx.globalCompositeOperation = "destination-out";
-      ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+
       ctx.restore();
     }
-  }
 
-  // Pointer events：一次支援滑鼠/觸控/筆
-  canvas.addEventListener("pointerdown", (e) => {
-    const p = getPos(e);
-    activeBox = hitBox(p);         // 只有點在灰色方塊上才允許開始刮
-    isDrawing = !!activeBox;
-    last = p;
-  });
+    // 計算單一 box 內透明比例
+    function calcTransparentRatio(box) {
+      const img = ctx.getImageData(box.x, box.y, box.w, box.h);
+      const data = img.data;
+      const total = box.w * box.h;
+      let transparent = 0;
 
-  canvas.addEventListener("pointermove", (e) => {
-    if (!isDrawing) return;
-    const p = getPos(e);
-    scratchLine(last, p);
-    last = p;
-  });
+      // alpha 在 data[i+3]
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] === 0) transparent++;
+      }
+      return transparent / total;
+    }
 
-  window.addEventListener("pointerup", () => {
-    if (!isDrawing) return;
-    isDrawing = false;
+    // 達到門檻就揭曉該 box（把剩餘遮罩整塊清掉）
+    function tryReveal(box) {
+      const ratio = calcTransparentRatio(box);
+      if (ratio >= threshold) {
+        box.revealed = true;
 
-    // 放開後才計算刮開比例（避免每一筆都讀像素造成卡頓）
-    if (activeBox) tryReveal(activeBox);
-    activeBox = null;
-  });
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillRect(box.x, box.y, box.w, box.h);
+        ctx.restore();
+      }
+    }
 
-  // 可選：提供重置
-  window.resetScratch = function(){
-    for (const b of boxes) b.revealed = false;
-    drawCovers();
-  }
-</script>
+    // ====== 事件監聽（Pointer Events 支援滑鼠/觸控/筆） ======
+    let isDrawing = false;
+    let last = { x: 0, y: 0 };
+    let activeBox = null;
+
+    canvas.addEventListener("pointerdown", (e) => {
+      const p = getPos(e);
+
+      // ✅ 只有按在灰色方塊上才允許開始刮
+      activeBox = hitBox(p);
+      isDrawing = !!activeBox;
+
+      last = p;
+    });
+
+    canvas.addEventListener("pointermove", (e) => {
+      if (!isDrawing || !activeBox) return;
+
+      const p = getPos(e);
+      scratchLine(activeBox, last, p);
+      last = p;
+    });
+
+    window.addEventListener("pointerup", () => {
+      if (!isDrawing) return;
+
+      isDrawing = false;
+
+      // 放開時才判斷刮開比例（效能較好）
+      if (activeBox) {
+        tryReveal(activeBox);
+        activeBox = null;
+      }
+    });
+
+    // 方便你測試：在 Console 打 resetScratch() 可重置
+    window.resetScratch = function(){
+      for (const b of boxes) b.revealed = false;
+      drawCovers();
+    };
+  </script>
 </body>
 </html>
