@@ -36,7 +36,7 @@
       display:flex;
       align-items:center;
       gap:10px;
-      flex-wrap:wrap;
+      flex-wrap:wrap; /* 允許狀態文字換行，但不影響輸入組 */
       padding:10px 12px;
       background:#fff;
       border:1px solid #e9e9e9;
@@ -46,8 +46,23 @@
     }
     .panel strong{ color:#333; }
 
+    /* ✅ 讓輸入框 + 確認按鈕永遠同一行 */
+    .nameRow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:nowrap;     /* ✅ 不換行 */
+      white-space:nowrap;   /* ✅ 不換行 */
+      flex: 0 0 auto;
+      max-width: 100%;
+    }
+    .nameRow input{
+      width: 180px;
+      max-width: 42vw;      /* 窄螢幕縮小但仍跟按鈕同排 */
+    }
+
     .status{
-      width:100%;
+      flex-basis: 100%;     /* 狀態文字獨立一行（只它換行） */
       margin-top:2px;
       font-size:13px;
       color:#777;
@@ -70,16 +85,8 @@
       touch-action:none;
     }
 
-    .hint{
-      margin-top:12px;
-      color:#555;
-      font-size:14px;
-      text-align:center;
-      line-height:1.4;
-    }
-
     .lockHint{
-      margin-top:6px;
+      margin-top:8px;
       color:#888;
       font-size:13px;
       text-align:center;
@@ -94,12 +101,18 @@
     <!-- ✅ 先填名字才能刮（名字鎖死 + 一次機會） -->
     <div class="panel">
       <strong>請先填你的名字：</strong>
-      <input type="text" id="nameInput" placeholder="例如：思瑜" maxlength="8" />
-      <button id="confirmNameBtn">確認</button>
+
+      <!-- ✅ 這組永遠同一行：輸入框 + 確認 -->
+      <div class="nameRow">
+        <input type="text" id="nameInput" placeholder="例如：思瑜" maxlength="8" />
+        <button id="confirmNameBtn">確認</button>
+      </div>
+
       <div class="status" id="statusText">尚未開始：請先輸入名字並按「確認」，才可以刮（只有一次機會）。</div>
     </div>
 
     <canvas id="canvas"></canvas>
+    <div class="lockHint" id="lockHint"></div>
 
   </div>
 
@@ -113,10 +126,10 @@
   const lockHintEl = document.getElementById("lockHint");
 
   // ====== ✅ 一次機會：localStorage（重新整理也不能重來）======
-  const LS_NAME_KEY = "scratch_once_v2_name";
-  const LS_CONFIRMED_KEY = "scratch_once_v2_confirmed";
-  const LS_PLAYED_KEY = "scratch_once_v2_played";
-  const LS_LOCKED_SIDE_KEY = "scratch_once_v2_lockedSide"; // 讓重新整理後仍保留鎖哪邊
+  const LS_NAME_KEY = "scratch_once_v3_name";
+  const LS_CONFIRMED_KEY = "scratch_once_v3_confirmed";
+  const LS_PLAYED_KEY = "scratch_once_v3_played";
+  const LS_LOCKED_SIDE_KEY = "scratch_once_v3_lockedSide";
 
   // ====== 狀態 ======
   let playerName = "";
@@ -342,7 +355,6 @@
   let activeBox = null;
 
   canvas.addEventListener("pointerdown", (e) => {
-    // 必須先確認名字
     if (!nameConfirmed){
       setStatus("請先輸入名字並按「確認」，才可以開始刮（只有一次機會）！", true);
       isDrawing = false;
@@ -360,7 +372,7 @@
       return;
     }
 
-    // 第一次命中時鎖定邊
+    // 第一次命中時鎖定邊（只能刮一邊）
     if (!lockedSide) {
       lockedSide = hit.id;
       localStorage.setItem(LS_LOCKED_SIDE_KEY, lockedSide);
