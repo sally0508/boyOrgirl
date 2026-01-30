@@ -19,39 +19,55 @@
       width:min(980px, 95vw);
     }
 
-    .toolbar{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-      margin-bottom:10px;
-    }
-
-    input[type="file"], button{
+    input[type="text"], button{
       padding:8px 10px;
       border:1px solid #ddd;
       border-radius:10px;
       background:#fff;
+      font-size:14px;
     }
     button{ cursor:pointer; }
     button:hover{ background:#fafafa; }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    input:disabled{ background:#f3f3f3; color:#666; }
 
-    /* ✅ RWD：canvas 寬度跟容器走，高度用 aspect-ratio 維持比例 */
+    /* ✅ 名字輸入區塊 */
+    .panel{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:10px 12px;
+      background:#fff;
+      border:1px solid #e9e9e9;
+      border-radius:12px;
+      box-shadow:0 8px 20px rgba(0,0,0,.06);
+      margin-bottom:10px;
+    }
+    .panel strong{ color:#333; }
+
+    .status{
+      width:100%;
+      margin-top:2px;
+      font-size:13px;
+      color:#777;
+      line-height:1.4;
+    }
+    .status.warn{ color:#c53030; font-weight:800; }
+
+    /* ✅ RWD canvas */
     canvas{
       width:100%;
       max-width:980px;
-      aspect-ratio: 720 / 430; /* 你的原始設計比例 */
+      aspect-ratio: 720 / 430; /* 設計稿比例 */
       height:auto;
 
       display:block;
       border-radius:12px;
       box-shadow:0 12px 30px rgba(0,0,0,.12);
 
-      background:
-        url("Guess.jpg")
-        no-repeat center / 100% 100%;
-
-      touch-action:none; /* ✅ 手機必加：不然會滑動頁面導致刮不動 */
+      background: url("Guess.jpg") no-repeat center / 100% 100%;
+      touch-action:none;
     }
 
     .hint{
@@ -61,43 +77,132 @@
       text-align:center;
       line-height:1.4;
     }
+
+    .lockHint{
+      margin-top:6px;
+      color:#888;
+      font-size:13px;
+      text-align:center;
+      line-height:1.4;
+    }
   </style>
 </head>
 
 <body>
   <div class="wrap">
-    <div class="toolbar">
-      <input type="file" id="bgPicker" accept="image/*">
-      <button id="resetBtn">重置遮罩</button>
+
+    <!-- ✅ 先填名字才能刮（名字鎖死 + 一次機會） -->
+    <div class="panel">
+      <strong>請先填你的名字：</strong>
+      <input type="text" id="nameInput" placeholder="例如：Sally" maxlength="20" />
+      <button id="confirmNameBtn">確認</button>
+      <div class="status" id="statusText">尚未開始：請先輸入名字並按「確認」，才可以刮（只有一次機會）。</div>
     </div>
 
     <canvas id="canvas"></canvas>
 
-    <div class="hint">
-      只能用畫線刮開灰色遮罩（刮開超過 60% 會自動揭曉）
-    </div>
   </div>
 
 <script>
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
+  const nameInput = document.getElementById("nameInput");
+  const confirmNameBtn = document.getElementById("confirmNameBtn");
+  const statusText = document.getElementById("statusText");
+  const lockHintEl = document.getElementById("lockHint");
+
+  // ====== ✅ 一次機會：localStorage（重新整理也不能重來）======
+  const LS_NAME_KEY = "scratch_once_v2_name";
+  const LS_CONFIRMED_KEY = "scratch_once_v2_confirmed";
+  const LS_PLAYED_KEY = "scratch_once_v2_played";
+  const LS_LOCKED_SIDE_KEY = "scratch_once_v2_lockedSide"; // 讓重新整理後仍保留鎖哪邊
+
+  // ====== 狀態 ======
+  let playerName = "";
+  let nameConfirmed = false;
+
+  // 定義：第一次「真正開始刮」(pointerdown 命中可刮區) 就算用掉
+  let hasPlayed = false;
+
+  // 只能刮一邊
+  let lockedSide = null; // "left" | "right"
+
+  function setStatus(msg, warn=false){
+    statusText.textContent = msg;
+    statusText.classList.toggle("warn", warn);
+  }
+
+  function lockNameUI(){
+    nameInput.disabled = true;
+    confirmNameBtn.disabled = true;
+  }
+
+  function renderLockHint(){
+    if (!lockHintEl) return;
+
+    if (!nameConfirmed){
+      lockHintEl.textContent = "尚未開始：請先填名字並按「確認」才可以刮（且只有一次機會）。";
+      return;
+    }
+
+    const sideText = lockedSide
+      ? `目前鎖定：只能刮 ${lockedSide === "left" ? "男生(左邊)" : "女生(右邊)"}。`
+      : "尚未鎖定：第一次刮到哪邊就鎖哪邊。";
+
+    if (!hasPlayed){
+      lockHintEl.textContent = `Hi ${playerName}：名字已鎖定。${sideText}（開始刮就會用掉唯一一次機會）`;
+    } else {
+      lockHintEl.textContent = `Hi ${playerName}：你的機會已使用（不能重來）。${sideText}`;
+    }
+  }
+
+  function confirmName(){
+    if (hasPlayed){
+      setStatus("你的機會已使用，無法再輸入或更改名字。", true);
+      return;
+    }
+
+    const v = (nameInput.value || "").trim();
+    if (!v){
+      setStatus("請先輸入名字再按確認！", true);
+      return;
+    }
+
+    playerName = v;
+    nameConfirmed = true;
+
+    // ✅ 名字確認後就鎖死
+    lockNameUI();
+
+    // ✅ 寫入 localStorage，避免重新整理偷改
+    localStorage.setItem(LS_NAME_KEY, playerName);
+    localStorage.setItem(LS_CONFIRMED_KEY, "1");
+
+    setStatus(`Hi ${playerName}，名字已確認並鎖定！現在可以開始刮（只有一次機會）。`);
+    renderLockHint();
+  }
+
+  confirmNameBtn.addEventListener("click", confirmName);
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") confirmName();
+  });
+
   // ====== 你的「設計稿尺寸」：boxes 用這個座標系 ======
   const DESIGN_W = 720;
   const DESIGN_H = 430;
 
-  // ✅ boxes 仍然照你原本的值（設計稿座標）
   const boxesDesign = [
-    { id: "left",  x: 0,  y: 138, w: 346, h: 180, label: "男生", revealed: false },
+    { id: "left",  x: 0,   y: 138, w: 346, h: 180, label: "男生", revealed: false },
     { id: "right", x: 400, y: 138, w: 346, h: 180, label: "女生", revealed: false }
   ];
 
   const threshold = 0.60;
   const brushSize = 26;
 
-  // ====== RWD 核心：同步 canvas 內部像素尺寸（含 DPR）=====
+  // ====== RWD / DPR ======
   let dpr = 1;
-  let viewW = 0, viewH = 0; // CSS px 尺寸（顯示尺寸）
+  let viewW = 0, viewH = 0;
 
   function resizeCanvasToDisplaySize() {
     const rect = canvas.getBoundingClientRect();
@@ -113,18 +218,15 @@
       canvas.height = needH;
     }
 
-    // ✅ 讓你用「CSS px」來畫：ctx 會自動乘上 DPR
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  // ====== 把設計稿 boxes 轉成目前畫面比例 boxes ======
   function getBoxesScaled() {
     const sx = viewW / DESIGN_W;
     const sy = viewH / DESIGN_H;
 
     return boxesDesign.map(b => ({
       ...b,
-      // 保留 revealed 狀態（因為 map 會複製）
       x: b.x * sx,
       y: b.y * sy,
       w: b.w * sx,
@@ -132,26 +234,23 @@
     }));
   }
 
-  // ====== 畫遮罩 + 文字（灰底在下、字在上）=====
   function drawCovers() {
     resizeCanvasToDisplaySize();
 
     ctx.globalCompositeOperation = "source-over";
-    ctx.clearRect(0, 0, viewW, viewH); // 用 CSS px 清
+    ctx.clearRect(0, 0, viewW, viewH);
 
     const boxes = getBoxesScaled();
 
-    // 1) 灰色遮罩（#ddd）
+    // 灰色遮罩
     ctx.fillStyle = "#ddd";
     for (const b of boxes) {
       if (!b.revealed) ctx.fillRect(b.x, b.y, b.w, b.h);
     }
 
-    // 2) 文字（在遮罩上面）
+    // 文字
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-
-    // 字體依畫面縮放（不然縮放會看起來怪）
     const fontSize = Math.max(18, Math.round(viewW * 0.045));
     ctx.font = `800 ${fontSize}px 'Noto Sans TC', system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
 
@@ -169,19 +268,17 @@
       ctx.fillText(b.label, cx, cy);
     }
 
-    // 3) 刮除筆刷
+    // 筆刷
     ctx.lineWidth = brushSize;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+
+    renderLockHint();
   }
 
-  // ====== 座標：轉成 CSS px（因為我們用 ctx.setTransform(dpr...)）=====
   function getPos(e) {
     const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left),
-      y: (e.clientY - rect.top)
-    };
+    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
   }
 
   function hitBox(p, boxes) {
@@ -196,8 +293,6 @@
     if (!box) return;
 
     ctx.save();
-
-    // ✅ 限制只能刮該方塊內（避免外面也被刮）
     ctx.beginPath();
     ctx.rect(box.x, box.y, box.w, box.h);
     ctx.clip();
@@ -211,7 +306,6 @@
     ctx.restore();
   }
 
-  // ✅ getImageData 用「內部像素」座標，所以要乘上 dpr
   function calcTransparentRatio(box) {
     const x = Math.floor(box.x * dpr);
     const y = Math.floor(box.y * dpr);
@@ -232,11 +326,9 @@
   function tryReveal(box) {
     const ratio = calcTransparentRatio(box);
     if (ratio >= threshold) {
-      // 反映回 boxesDesign 的 revealed（靠 id 對應）
       const target = boxesDesign.find(b => b.id === box.id);
       if (target) target.revealed = true;
 
-      // 清掉剩餘遮罩
       ctx.save();
       ctx.globalCompositeOperation = "destination-out";
       ctx.fillRect(box.x, box.y, box.w, box.h);
@@ -250,23 +342,62 @@
   let activeBox = null;
 
   canvas.addEventListener("pointerdown", (e) => {
+    // 必須先確認名字
+    if (!nameConfirmed){
+      setStatus("請先輸入名字並按「確認」，才可以開始刮（只有一次機會）！", true);
+      isDrawing = false;
+      activeBox = null;
+      return;
+    }
+
     const boxes = getBoxesScaled();
     const p = getPos(e);
+    const hit = hitBox(p, boxes);
 
-    activeBox = hitBox(p, boxes);
-    isDrawing = !!activeBox;
+    if (!hit) {
+      isDrawing = false;
+      activeBox = null;
+      return;
+    }
+
+    // 第一次命中時鎖定邊
+    if (!lockedSide) {
+      lockedSide = hit.id;
+      localStorage.setItem(LS_LOCKED_SIDE_KEY, lockedSide);
+      renderLockHint();
+    }
+
+    // 已鎖定就不能刮另一邊
+    if (hit.id !== lockedSide) {
+      setStatus(`Hi ${playerName}：你已鎖定「${lockedSide === "left" ? "男生(左邊)" : "女生(右邊)"}」，另一邊不能刮。`, true);
+      isDrawing = false;
+      activeBox = null;
+      return;
+    }
+
+    // ✅ 第一次真正開始刮 -> 使用一次機會（鎖死）
+    if (!hasPlayed) {
+      hasPlayed = true;
+      localStorage.setItem(LS_PLAYED_KEY, "1");
+      setStatus(`Hi ${playerName}：你已開始刮，機會已使用（不能重來）。`);
+      renderLockHint();
+    }
+
+    activeBox = hit;
+    isDrawing = true;
     last = p;
+
+    canvas.setPointerCapture?.(e.pointerId);
   });
 
   canvas.addEventListener("pointermove", (e) => {
     if (!isDrawing || !activeBox) return;
-
     const p = getPos(e);
     scratchLine(activeBox, last, p);
     last = p;
   });
 
-  window.addEventListener("pointerup", () => {
+  window.addEventListener("pointerup", (e) => {
     if (!isDrawing) return;
     isDrawing = false;
 
@@ -274,37 +405,42 @@
       tryReveal(activeBox);
       activeBox = null;
     }
+
+    try { canvas.releasePointerCapture?.(e.pointerId); } catch {}
   });
 
-  // ====== 重置 ======
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    boxesDesign.forEach(b => b.revealed = false);
+  // ====== 初始化：讀取 localStorage（避免重新整理重來/改名）======
+  (function init(){
+    const savedName = localStorage.getItem(LS_NAME_KEY) || "";
+    const savedConfirmed = localStorage.getItem(LS_CONFIRMED_KEY) === "1";
+    const savedPlayed = localStorage.getItem(LS_PLAYED_KEY) === "1";
+    const savedSide = localStorage.getItem(LS_LOCKED_SIDE_KEY);
+
+    if (savedConfirmed && savedName){
+      playerName = savedName;
+      nameConfirmed = true;
+      nameInput.value = savedName;
+      lockNameUI();
+    }
+
+    if (savedSide === "left" || savedSide === "right"){
+      lockedSide = savedSide;
+    }
+
+    if (savedPlayed){
+      hasPlayed = true;
+      setStatus(`Hi ${playerName || "玩家"}：你已使用一次機會（不能重來）。`);
+    } else {
+      setStatus(savedConfirmed
+        ? `Hi ${playerName}：名字已鎖定！可以開始刮（只有一次機會）。`
+        : "尚未開始：請先輸入名字並按「確認」，才可以刮（只有一次機會）。"
+      );
+    }
+
     drawCovers();
-  });
+  })();
 
-  // ====== 用 input 選桌面背景圖 ======
-  const bgPicker = document.getElementById("bgPicker");
-  let bgUrl = null;
-
-  bgPicker.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (bgUrl) URL.revokeObjectURL(bgUrl);
-    bgUrl = URL.createObjectURL(file);
-
-    canvas.style.background = `url("${bgUrl}") no-repeat center / 100% 100%`;
-
-    // 換背景後重繪一次
-    drawCovers();
-  });
-
-  // 初始繪製 + 監聽縮放
-  drawCovers();
-  window.addEventListener("resize", () => {
-    // ✅ 重要：縮放後要重畫，不然會出現你說的位置跑掉、刮不到
-    drawCovers();
-  });
+  window.addEventListener("resize", drawCovers);
 </script>
 </body>
 </html>
